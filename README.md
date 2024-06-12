@@ -1,1 +1,1 @@
-# QRCoder
+# QRSplit
