@@ -9,6 +9,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Xml.Linq;
 
 namespace QRSplit
 {
@@ -29,11 +30,29 @@ namespace QRSplit
             var bts = File.ReadAllBytes(ofd.FileName);
             var b64 = Convert.ToBase64String(bts);
             images.Clear();
+            int chunkId = 0;
+            int chunksQty = b64.Length / blockSize;
+            if ((b64.Length % blockSize) > 0) 
+                chunksQty++;
+
             for (int i = 0; i < b64.Length; i += blockSize)
             {
                 var last = b64.Length - i;
                 last = Math.Min(blockSize, last);
                 var sub = b64.Substring(i, last);
+                if (useXmlChunks)
+                {
+                    StringBuilder sb = new StringBuilder();
+                    sb.Append("<?xml version=\"1.0\"?>");
+                    sb.Append("<root>");
+                    sb.Append($"<chunk fullSize=\"{b64.Length}\" size=\"{last}\" id=\"{chunkId++}\" name=\"{Path.GetFileName(ofd.FileName)}\" offset=\"{i}\" chunksQty=\"{chunksQty}\">");
+                    var xc = new XCData(sub);
+                    sb.Append(xc.ToString());
+                    sb.Append("</chunk>");
+                    sb.Append("</root>");
+                    sub = sb.ToString();
+                    var check = XDocument.Parse(sub);
+                }
                 var qq = RenderQrCode(sub);
                 images.Add(qq);
             }
@@ -43,10 +62,8 @@ namespace QRSplit
 
         List<Bitmap> images = new List<Bitmap>();
 
-
         private Bitmap RenderQrCode(string text, string level = "L")
         {
-
             QRCodeGenerator.ECCLevel eccLevel = (QRCodeGenerator.ECCLevel)(level == "L" ? 0 : level == "M" ? 1 : level == "Q" ? 2 : 3);
             using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
             using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(text, eccLevel))
@@ -63,6 +80,7 @@ namespace QRSplit
                 return img;
             }
         }
+
         private Color GetPrimaryColor()
         {
             return Color.Black;
@@ -79,16 +97,18 @@ namespace QRSplit
 
         }
 
-        int blockSize = 2900;
+        int blockSize = 2800;
+        bool useXmlChunks = true;
         private void toolStripButton2_Click(object sender, EventArgs e)
         {
             var d = AutoDialog.DialogHelpers.StartDialog();
-            d.AddNumericField("blockSize", "Block size", blockSize, 2900, 128, 0);
+            d.AddNumericField("blockSize", "Block size", blockSize, 2800, 128, 0);
+            d.AddBoolField("useXmlChunkFormat", "Xml chunks", useXmlChunks);
             if (!d.ShowDialog())
                 return;
 
             blockSize = d.GetIntegerNumericField("blockSize");
-
+            useXmlChunks = d.GetBoolField("useXmlChunkFormat");
         }
 
         int imageIdx = 0;
