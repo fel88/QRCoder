@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
@@ -28,11 +29,12 @@ namespace QRSplit
 
             Text = "File split: " + ofd.FileName;
             var bts = File.ReadAllBytes(ofd.FileName);
+
             var b64 = Convert.ToBase64String(bts);
             images.Clear();
             int chunkId = 0;
             int chunksQty = b64.Length / blockSize;
-            if ((b64.Length % blockSize) > 0) 
+            if ((b64.Length % blockSize) > 0)
                 chunksQty++;
 
             for (int i = 0; i < b64.Length; i += blockSize)
@@ -53,9 +55,35 @@ namespace QRSplit
                     sub = sb.ToString();
                     var check = XDocument.Parse(sub);
                 }
+                if (byteShiftMode)
+                {
+                    StringBuilder sb = new StringBuilder();
+                    for (int k = 0; k < sub.Length; k++)
+                    {
+                        sb.Append((char)((sub[k] + nByteShift) % char.MaxValue));
+                    }
+                    StringBuilder sb2 = new StringBuilder();
+
+                    for (int k = 0; k < sb.Length; k++)
+                    {
+                        var cc = sb[k] - nByteShift;
+                        if (cc < 0)
+                        {
+                            cc += char.MaxValue;
+                        }
+                        sb2.Append((char)cc);
+                    }
+                    if (sb2.ToString() != sub)
+                    {
+                        MessageBox.Show("error");
+                    }
+                    sub = sb.ToString();
+                }
                 var qq = RenderQrCode(sub);
                 images.Add(qq);
             }
+
+            imageIdx = 0;
             if (images.Any())
                 pictureBox1.Image = images[0];
         }
@@ -92,30 +120,33 @@ namespace QRSplit
         }
         private Bitmap GetIconBitmap()
         {
-
             return null;
-
         }
 
         int blockSize = 2800;
         bool useXmlChunks = true;
+        bool byteShiftMode = true;
+        int nByteShift = 1;
         private void toolStripButton2_Click(object sender, EventArgs e)
         {
             var d = AutoDialog.DialogHelpers.StartDialog();
             d.AddNumericField("blockSize", "Block size", blockSize, 2800, 128, 0);
+            d.AddNumericField("animateInterval", "Animate Interval", timer1.Interval, 5000, 100, 0);
+            d.AddNumericField("nByteShift", "N byte shift", nByteShift, 7, 1, 0);
+            d.AddBoolField("byteShiftMode", "Byte shift mode", byteShiftMode);
             d.AddBoolField("useXmlChunkFormat", "Xml chunks", useXmlChunks);
             if (!d.ShowDialog())
                 return;
 
+            byteShiftMode = d.GetBoolField("byteShiftMode");
             blockSize = d.GetIntegerNumericField("blockSize");
+            nByteShift = d.GetIntegerNumericField("nByteShift");
+            timer1.Interval = d.GetIntegerNumericField("animateInterval");
             useXmlChunks = d.GetBoolField("useXmlChunkFormat");
         }
 
         int imageIdx = 0;
-        private void toolStripButton3_Click(object sender, EventArgs e)
-        {
-            next();
-        }
+        
         public void next()
         {
             if (images.Count == 0)
@@ -124,13 +155,20 @@ namespace QRSplit
             if (imageIdx < images.Count - 1)
                 imageIdx++;
 
-            toolStripStatusLabel1.Text = $"{imageIdx + 1} / {images.Count}";
-            pictureBox1.Image = images[imageIdx];
+            setImage();
         }
         private void toolStripButton4_Click(object sender, EventArgs e)
         {
             if (imageIdx > 0)
                 imageIdx--;
+
+            setImage();
+        }
+
+        void setImage()
+        {
+            if (images.Count == 0)
+                return;
 
             toolStripStatusLabel1.Text = $"{imageIdx + 1} / {images.Count}";
             pictureBox1.Image = images[imageIdx];
@@ -139,6 +177,27 @@ namespace QRSplit
         private void pictureBox1_Click(object sender, EventArgs e)
         {
             next();
+        }
+                
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            next();
+        }
+
+        private void toolStripButton6_Click(object sender, EventArgs e)
+        {
+            timer1.Enabled = !timer1.Enabled;
+        }
+
+        private void toolStripButton5_Click_1(object sender, EventArgs e)
+        {
+            next();
+        }
+
+        private void toolStripButton3_Click_1(object sender, EventArgs e)
+        {
+            imageIdx = 0;
+            setImage();
         }
     }
 }
